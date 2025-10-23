@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import HomePage from './components/HomePage';
 import StudentDashboard from './components/StudentDashboard';
 import Header from './components/Header';
 import AiMentorChatbot from './components/AiMentorChatbot';
+import './index.css';
 
 type View = 'home' | 'dashboard';
 

@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { analyzeResume } from '../services/geminiService';
 import { StudentProfile, Internship, CareerMatch, SuggestedCourse, Skill } from '../types';
 import DashboardCard from './DashboardCard';
@@ -48,20 +47,23 @@ Soft Skills
 `;
 
 const StudentDashboard: React.FC = () => {
-    const [resumeText, setResumeText] = useState(sampleResume);
+    const [resumeText, setResumeText] = useState('');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [profile, setProfile] = useState<StudentProfile | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleAnalyze = async () => {
-        if (!resumeText.trim()) {
-            setError('Please paste your resume content.');
+    const handleAnalyze = async (textToAnalyze: string) => {
+        if (!textToAnalyze.trim()) {
+            setError('Resume content is empty.');
             return;
         }
         setIsLoading(true);
         setError(null);
         try {
-            const result = await analyzeResume(resumeText);
+            const result = await analyzeResume(textToAnalyze);
             setProfile(result);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'An unknown error occurred.');
@@ -70,35 +72,129 @@ const StudentDashboard: React.FC = () => {
         }
     };
 
+    const handleFileChange = (file: File | null) => {
+        if (!file) return;
+
+        // For this prototype, we'll handle .txt files.
+        // In a real app, you'd use a library like pdf.js or mammoth.js for PDF/DOCX
+        if (file.type === 'text/plain') {
+            setSelectedFile(file);
+            setError(null);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target?.result as string;
+                setResumeText(text);
+            };
+            reader.onerror = () => {
+                setError('Failed to read the file.');
+                setSelectedFile(null);
+            };
+            reader.readAsText(file);
+        } else {
+            setError('Please upload a .txt file. PDF/DOCX support coming soon!');
+            setSelectedFile(null);
+        }
+    };
+
+    const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+    
+    const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFileChange(e.dataTransfer.files[0]);
+            e.dataTransfer.clearData();
+        }
+    };
+
+    const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            handleFileChange(e.target.files[0]);
+        }
+    };
+    
+    const removeFile = () => {
+        setSelectedFile(null);
+        setResumeText('');
+        if(fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    }
+
     return (
         <div className="space-y-6">
             {!profile ? (
                 <div className="max-w-4xl mx-auto p-8 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Welcome, Student!</h2>
-                    <p className="text-slate-600 dark:text-slate-400 mb-4">Paste your resume below to generate your personalized career dashboard. We've included a sample to get you started.</p>
-                    <textarea
-                        value={resumeText}
-                        onChange={(e) => setResumeText(e.target.value)}
-                        placeholder="Paste your resume content here..."
-                        className="w-full h-64 p-3 border border-slate-300 dark:border-slate-600 rounded-md bg-slate-50 dark:bg-slate-700 focus:ring-2 focus:ring-primary-500 focus:outline-none transition"
-                        disabled={isLoading}
-                    />
-                    {error && <p className="text-red-500 mt-2">{error}</p>}
-                    <button
-                        onClick={handleAnalyze}
-                        disabled={isLoading}
-                        className="mt-4 w-full sm:w-auto px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg shadow-md hover:bg-primary-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                    <p className="text-slate-600 dark:text-slate-400 mb-4">Upload your resume to generate your personalized career dashboard.</p>
+                    
+                    <div
+                        className={`mt-4 border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                            isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-primary-400'
+                        }`}
+                        onDragOver={onDragOver}
+                        onDragLeave={onDragLeave}
+                        onDrop={onDrop}
+                        onClick={() => fileInputRef.current?.click()}
                     >
-                        {isLoading ? (
-                            <>
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Analyzing...
-                            </>
-                        ) : 'Build My SkillSphere'}
-                    </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            className="hidden"
+                            accept=".txt,.pdf,.docx" // Accept more but handle only txt for now
+                            onChange={onFileInputChange}
+                        />
+                         <div className="flex flex-col items-center justify-center gap-4">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-slate-400 dark:text-slate-500">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                             </svg>
+                            {selectedFile ? (
+                                <div className="text-slate-700 dark:text-slate-300 font-semibold">
+                                    <p>{selectedFile.name}</p>
+                                    <button onClick={(e) => { e.stopPropagation(); removeFile(); }} className="mt-2 text-sm text-red-500 hover:underline">Remove File</button>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="font-semibold text-slate-700 dark:text-slate-300">Drag & drop your resume or <span className="text-primary-600">click to browse</span></p>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">.txt files supported for this demo</p>
+                                </div>
+                            )}
+                         </div>
+                    </div>
+
+                    {error && <p className="text-red-500 mt-2">{error}</p>}
+                    <div className="mt-6 flex flex-col sm:flex-row gap-4">
+                        <button
+                            onClick={() => handleAnalyze(resumeText)}
+                            disabled={isLoading || !selectedFile}
+                            className="w-full sm:w-auto px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg shadow-md hover:bg-primary-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 order-1"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Analyzing...
+                                </>
+                            ) : 'Build My SkillSphere'}
+                        </button>
+                        <button
+                            onClick={() => handleAnalyze(sampleResume)}
+                            disabled={isLoading}
+                            className="w-full sm:w-auto px-6 py-3 bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 transition order-2 sm:order-1"
+                        >
+                           Use Sample Resume
+                        </button>
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -205,4 +301,3 @@ const StudentDashboard: React.FC = () => {
 };
 
 export default StudentDashboard;
-
