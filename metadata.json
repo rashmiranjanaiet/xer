@@ -1,0 +1,5 @@
+{
+  "name": "BPUT SkillSphere",
+  "description": "An AI-Powered Career & Internship Platform for BPUT Students. This prototype focuses on the student dashboard, where users can upload their resume to get an AI-generated skill map, career readiness score, and personalized recommendations.",
+  "requestFramePermissions": []
+}
